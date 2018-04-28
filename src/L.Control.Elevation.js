@@ -22,8 +22,15 @@ L.Control.Elevation = L.Control.extend({
         collapsed: false,
         yAxisMin: undefined,
         yAxisMax: undefined,
-        forceAxisBounds: false
+        forceAxisBounds: false,
+        controlButton: {
+            iconCssClass: "elevation-toggle-icon",
+            title: "Elevation"
+        },
+        imperial: false
     },
+    __mileFactor: 0.621371,
+    __footFactor: 3.28084,
 
     onRemove: function(map) {
         this._container = null;
@@ -37,9 +44,6 @@ L.Control.Elevation = L.Control.extend({
         opts.xTicks = opts.xTicks || Math.round(this._width() / 75);
         opts.yTicks = opts.yTicks || Math.round(this._height() / 30);
         opts.hoverNumber.formatter = opts.hoverNumber.formatter || this._formatter;
-
-        //append theme name on body
-        d3.select("body").classed(opts.theme, true);
 
         var x = this._x = d3.scaleLinear()
             .range([0, this._width()]);
@@ -60,6 +64,7 @@ L.Control.Elevation = L.Control.extend({
             });
 
         var container = this._container = L.DomUtil.create("div", "elevation");
+        L.DomUtil.addClass(container, opts.theme); //append theme to control
 
         this._initToggle();
 
@@ -298,9 +303,10 @@ L.Control.Elevation = L.Control.extend({
                     .on(container, 'mouseover', this._expand, this)
                     .on(container, 'mouseout', this._collapse, this);
             }
-            var link = this._button = L.DomUtil.create('a', 'elevation-toggle', container);
+            var link = this._button = L.DomUtil.create('a', "elevation-toggle " + this.options.controlButton
+                .iconCssClass, container);
             link.href = '#';
-            link.title = 'Elevation';
+            link.title = this.options.controlButton.title;
 
             if (L.Browser.touch) {
                 L.DomEvent
@@ -355,28 +361,57 @@ L.Control.Elevation = L.Control.extend({
     },
 
     _appendYaxis: function(y) {
-        y.attr("class", "y axis")
-            .call(d3.axisLeft()
-                .scale(this._y)
-                .ticks(this.options.yTicks))
-            .append("text")
-            .attr("x", -45)
-            .attr("y", 3)
-            .style("text-anchor", "end")
-            .text("m");
+        var opts = this.options;
+
+        if (opts.imperial) {
+            y.attr("class", "y axis")
+                .call(d3.axisLeft()
+                    .scale(this._y)
+                    .ticks(this.options.yTicks))
+                .append("text")
+                .attr("x", -37)
+                .attr("y", 3)
+                .style("text-anchor", "end")
+                .text("ft");
+        } else {
+            y.attr("class", "y axis")
+                .call(d3.axisLeft()
+                    .scale(this._y)
+                    .ticks(this.options.yTicks))
+                .append("text")
+                .attr("x", -45)
+                .attr("y", 3)
+                .style("text-anchor", "end")
+                .text("m");
+        }
     },
 
     _appendXaxis: function(x) {
-        x.attr("class", "x axis")
-            .attr("transform", "translate(0," + this._height() + ")")
-            .call(d3.axisBottom()
-                .scale(this._x)
-                .ticks(this.options.xTicks))
-            .append("text")
-            .attr("x", this._width() + 20)
-            .attr("y", 15)
-            .style("text-anchor", "end")
-            .text("km");
+        var opts = this.options;
+
+        if (opts.imperial) {
+            x.attr("class", "x axis")
+                .attr("transform", "translate(0," + this._height() + ")")
+                .call(d3.axisBottom()
+                    .scale(this._x)
+                    .ticks(this.options.xTicks))
+                .append("text")
+                .attr("x", this._width() + 10)
+                .attr("y", 15)
+                .style("text-anchor", "end")
+                .text("mi");
+        } else {
+            x.attr("class", "x axis")
+                .attr("transform", "translate(0," + this._height() + ")")
+                .call(d3.axisBottom()
+                    .scale(this._x)
+                    .ticks(this.options.xTicks))
+                .append("text")
+                .attr("x", this._width() + 20)
+                .attr("y", 15)
+                .style("text-anchor", "end")
+                .text("km");
+        }
     },
 
     _updateAxis: function() {
@@ -446,21 +481,21 @@ L.Control.Elevation = L.Control.extend({
                 var heightG = d3.select(".leaflet-overlay-pane svg")
                     .append("g");
                 this._mouseHeightFocus = heightG.append('svg:line')
-                    .attr('class', 'height-focus line')
-                    .attr('x2', '0')
-                    .attr('y2', '0')
-                    .attr('x1', '0')
-                    .attr('y1', '0');
+                    .attr("class", opts.theme + " height-focus line")
+                    .attr("x2", 0)
+                    .attr("y2", 0)
+                    .attr("x1", 0)
+                    .attr("y1", 0);
 
                 var pointG = this._pointG = heightG.append("g");
                 pointG.append("svg:circle")
                     .attr("r", 6)
                     .attr("cx", 0)
                     .attr("cy", 0)
-                    .attr("class", "height-focus circle-lower");
+                    .attr("class", opts.theme + " height-focus circle-lower");
 
                 this._mouseHeightFocusLabel = heightG.append("svg:text")
-                    .attr("class", "height-focus-label")
+                    .attr("class", opts.theme + " height-focus-label")
                     .style("pointer-events", "none");
 
             }
@@ -476,10 +511,17 @@ L.Control.Elevation = L.Control.extend({
             this._pointG.attr("transform", "translate(" + layerpoint.x + "," + layerpoint.y + ")")
                 .style("visibility", "visible");
 
-            this._mouseHeightFocusLabel.attr("x", layerpoint.x)
-                .attr("y", normalizedY)
-                .text(numY + " m")
-                .style("visibility", "visible");
+            if (opts.imperial) {
+                this._mouseHeightFocusLabel.attr("x", layerpoint.x)
+                    .attr("y", normalizedY)
+                    .text(numY + " ft")
+                    .style("visibility", "visible");
+            } else {
+                this._mouseHeightFocusLabel.attr("x", layerpoint.x)
+                    .attr("y", normalizedY)
+                    .text(numY + " m")
+                    .style("visibility", "visible");
+            }
 
         } else {
 
@@ -501,6 +543,7 @@ L.Control.Elevation = L.Control.extend({
      * Parsing of GeoJSON data lines and their elevation in z-coordinate
      */
     _addGeoJSONData: function(coords) {
+        var opts = this.options;
         if (coords) {
             var data = this._data || [];
             var dist = this._dist || 0;
@@ -508,12 +551,12 @@ L.Control.Elevation = L.Control.extend({
             for (var i = 0; i < coords.length; i++) {
                 var s = new L.LatLng(coords[i][1], coords[i][0]);
                 var e = new L.LatLng(coords[i ? i - 1 : 0][1], coords[i ? i - 1 : 0][0]);
-                var newdist = s.distanceTo(e);
+                var newdist = opts.imperial ? s.distanceTo(e) * this.__mileFactor : s.distanceTo(e);
                 dist = dist + Math.round(newdist / 1000 * 100000) / 100000;
                 ele = ele < coords[i][2] ? coords[i][2] : ele;
                 data.push({
                     dist: dist,
-                    altitude: coords[i][2],
+                    altitude: opts.imperial ? coords[i][2] * this.__footFactor : coords[i][2],
                     x: coords[i][0],
                     y: coords[i][1],
                     latlng: s
@@ -521,6 +564,7 @@ L.Control.Elevation = L.Control.extend({
             }
             this._dist = dist;
             this._data = data;
+            ele = opts.imperial ? ele * this.__footFactor : ele;
             this._maxElevation = ele;
         }
     },
@@ -529,6 +573,7 @@ L.Control.Elevation = L.Control.extend({
      * Parsing function for GPX data as used by https://github.com/mpetazzoni/leaflet-gpx
      */
     _addGPXdata: function(coords) {
+        var opts = this.options;
         if (coords) {
             var data = this._data || [];
             var dist = this._dist || 0;
@@ -536,12 +581,12 @@ L.Control.Elevation = L.Control.extend({
             for (var i = 0; i < coords.length; i++) {
                 var s = coords[i];
                 var e = coords[i ? i - 1 : 0];
-                var newdist = s.distanceTo(e);
+                var newdist = opts.imperial ? s.distanceTo(e) * this.__mileFactor : s.distanceTo(e);
                 dist = dist + Math.round(newdist / 1000 * 100000) / 100000;
                 ele = ele < s.meta.ele ? s.meta.ele : ele;
                 data.push({
                     dist: dist,
-                    altitude: s.meta.ele,
+                    altitude: opts.imperial ? s.meta.ele * this.__footFactor : s.meta.ele,
                     x: s.lng,
                     y: s.lat,
                     latlng: s
@@ -549,6 +594,7 @@ L.Control.Elevation = L.Control.extend({
             }
             this._dist = dist;
             this._data = data;
+            ele = opts.imperial ? ele * this.__footFactor : ele;
             this._maxElevation = ele;
         }
     },
@@ -652,11 +698,19 @@ L.Control.Elevation = L.Control.extend({
             numY = opts.hoverNumber.formatter(alt, opts.hoverNumber.decimalsY),
             numX = opts.hoverNumber.formatter(dist, opts.hoverNumber.decimalsX);
 
-        this._focuslabelX.attr("x", xCoordinate)
-            .text(numY + " m");
-        this._focuslabelY.attr("y", this._height() - 5)
-            .attr("x", xCoordinate)
-            .text(numX + " km");
+        if (opts.imperial) {
+            this._focuslabelX.attr("x", xCoordinate)
+                .text(numY + " ft");
+            this._focuslabelY.attr("y", this._height() - 5)
+                .attr("x", xCoordinate)
+                .text(numX + " mi");
+        } else {
+            this._focuslabelX.attr("x", xCoordinate)
+                .text(numY + " m");
+            this._focuslabelY.attr("y", this._height() - 5)
+                .attr("x", xCoordinate)
+                .text(numX + " km");
+        }
     },
 
     _applyData: function() {
@@ -712,6 +766,12 @@ L.Control.Elevation = L.Control.extend({
         this._x.domain([0, 1]);
         this._y.domain([0, 1]);
         this._updateAxis();
+    },
+    hide: function() {
+        this._container.style.display = "none";
+    },
+    show: function() {
+        this._container.style.display = "block";
     }
 
 });
